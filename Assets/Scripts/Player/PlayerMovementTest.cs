@@ -135,6 +135,9 @@ public class PlayerMovementTest : MonoBehaviour
 
     private void Update()
     {
+        if (BestiaryJournal.BlocksGameplayInput)
+            return;
+
         if (estaMuerto)
             return;
 

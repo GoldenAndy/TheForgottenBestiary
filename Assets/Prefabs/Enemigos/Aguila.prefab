@@ -19,6 +19,7 @@ GameObject:
   - component: {fileID: 4464095926334938167}
   - component: {fileID: 1857097505046572030}
   - component: {fileID: 5620341446902422696}
+  - component: {fileID: 1364621227940959029}
   m_Layer: 8
   m_Name: Aguila
   m_TagString: Untagged
@@ -328,3 +329,16 @@ MonoBehaviour:
   distanciaCruceAtaque: 3
   toleranciaPreparacionLateral: 0.35
   offsetAlturaAtaqueLateral: 0
+--- !u!114 &1364621227940959029
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5782341909561197397}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2eb5eca0397c35d4c8b05e53c1f73841, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  species: 2
