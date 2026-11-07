@@ -231,6 +231,26 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
     [SerializeField]
     private float frenadoTrasGolpe = 10f;
 
+    [Header("Vuelo organico")]
+    [SerializeField, Min(0.1f)] private float aceleracionVuelo = 9f;
+    [SerializeField, Min(0.1f)] private float aceleracionAtaque = 32f;
+    [SerializeField, Min(0.1f)] private float aceleracionOrbita = 48f;
+    [SerializeField, Min(0f)] private float amplitudPlaneo = 0.22f;
+    [SerializeField, Min(0.05f)] private float frecuenciaPlaneo = 1.25f;
+    [SerializeField, Min(0f)] private float anticipacionVisualPicada = 0.18f;
+    [SerializeField, Range(0.4f, 1f)] private float proporcionVerticalOrbita = 0.72f;
+
+    private EnemigoVida vida;
+    private AguilaDuoCoordinator coordinador;
+    private float fasePlaneo, variacionVuelo, centroPatrullaX;
+    private float tiempoAnguloValido, tiempoEnEstado;
+    private EstadoAguila ultimoEstado;
+    private Vector2 direccionAtaque;
+    private float duoRadioActual, duoAngularActual;
+
+    public bool EstaViva => isActiveAndEnabled && gameObject.activeInHierarchy && (vida == null || !vida.EstaMuerto);
+
+
 
     // =========================================================
     // CONTROL DE DÚO / JEFE
@@ -389,6 +409,7 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
         duoVueltasActuales >= duoVueltasObjetivo;
 
     public bool PuedeSerDirigidaPorPareja =>
+        EstaViva && !jefeSolitarioPersistente &&
         estadoActual != EstadoAguila.Golpeada &&
         estadoActual != EstadoAguila.Evasion;
 
@@ -427,8 +448,12 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
         rb.interpolation =
             RigidbodyInterpolation2D.Interpolate;
 
-        camara =
-            Camera.main;
+        vida = GetComponent<EnemigoVida>();
+        coordinador = GetComponent<AguilaDuoCoordinator>();
+        fasePlaneo = Random.Range(0f, Mathf.PI * 2f);
+        variacionVuelo = Random.Range(0.92f, 1.08f);
+        centroPatrullaX = posicionInicial.x;
+        camara = Camera.main;
     }
 
 
@@ -489,6 +514,7 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
     private void OnEnable()
     {
+        if (vida != null) vida.OnDerrotado += AlSerDerrotada;
         if (contacto != null)
         {
             contacto.OnDanoAplicado +=
@@ -498,6 +524,7 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
     private void OnDisable()
     {
+        if (vida != null) vida.OnDerrotado -= AlSerDerrotada;
         if (contacto != null)
         {
             contacto.OnDanoAplicado -=
@@ -512,6 +539,25 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
     private void FixedUpdate()
     {
+        if (!EstaViva) return;
+        if (ultimoEstado != estadoActual) { ultimoEstado = estadoActual; tiempoEnEstado = 0f; }
+        tiempoEnEstado += Time.fixedDeltaTime;
+        fasePlaneo += Time.fixedDeltaTime * frecuenciaPlaneo * variacionVuelo;
+
+        // A second line of defence: no shared state can outlive its coordinator or partner.
+        if (EstaBajoControlDuo && (coordinador == null || !coordinador.TieneParejaValida))
+        {
+            if (modoJefeDuoActivo) ConvertirseEnJefeSolitario();
+            else IniciarRetirada();
+        }
+        if ((estadoActual == EstadoAguila.Evasion && tiempoEnEstado > 1.5f) ||
+            (estadoActual == EstadoAguila.DuoLanzamiento && tiempoEnEstado > tiempoMaximoPicada) ||
+            (estadoActual == EstadoAguila.DuoHostigamiento && tiempoEnEstado > 4f)) IniciarRetirada();
+        if (estadoActual == EstadoAguila.Retirada && tiempoEnEstado > 4.5f)
+        {
+            estadoActual = combateActivo ? EstadoAguila.Patrulla : EstadoAguila.Esperando;
+            ProgramarSiguienteAtaque();
+        }
         if (jugador == null)
             return;
 
@@ -595,55 +641,8 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
     private void ActualizarEspera()
     {
-        float mitad =
-            anchoPatrullaReposo * 0.5f;
-
-        float izquierda =
-            posicionInicial.x - mitad;
-
-        float derecha =
-            posicionInicial.x + mitad;
-
-        if (transform.position.x <= izquierda)
-        {
-            direccionPatrulla = 1f;
-        }
-        else if (transform.position.x >= derecha)
-        {
-            direccionPatrulla = -1f;
-        }
-
-
-        float diferenciaY =
-            alturaBaseY -
-            transform.position.y;
-
-        float velocidadY =
-            Mathf.Clamp(
-                diferenciaY * 2f,
-                -velocidadAjusteAltura,
-                velocidadAjusteAltura
-            );
-
-        rb.velocity =
-            new Vector2(
-                direccionPatrulla *
-                velocidadPatrulla,
-
-                velocidadY
-            );
-
-        ActualizarDireccionVisual(
-            rb.velocity.x
-        );
-
-
-        // ¿Entró el jugador al rango?
-        if (JugadorDentroDeRango(
-            rangoDeteccion))
-        {
-            ActivarCombate();
-        }
+        ActualizarPlaneo(posicionInicial.x, anchoPatrullaReposo);
+        if (JugadorDentroDeRango(rangoDeteccion)) ActivarCombate();
     }
 
 
@@ -708,6 +707,7 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
         tiempoActualPreparacionPicada =
             0f;
+        tiempoAnguloValido = 0f;
 
         ReproducirIdle();
 
@@ -723,100 +723,14 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
     private void ActualizarPatrulla()
     {
-        /*
-         * Continúa patrullando alrededor del jugador
-         * manteniendo siempre su altura original.
-         */
-
-        float centroX =
-            jugador.position.x;
-
-        float mitad =
-            anchoPatrullaCombate * 0.5f;
-
-        float limiteIzquierdo =
-            centroX - mitad;
-
-        float limiteDerecho =
-            centroX + mitad;
-
-        if (transform.position.x <=
-            limiteIzquierdo)
+        centroPatrullaX = Mathf.MoveTowards(centroPatrullaX, jugador.position.x, velocidadPatrulla * Time.fixedDeltaTime);
+        ActualizarPlaneo(centroPatrullaX, anchoPatrullaCombate);
+        if (!modoJefeDuoActivo && !jefeSolitarioPersistente && !JugadorDentroDeRango(rangoAbandono))
         {
-            direccionPatrulla = 1f;
+            DesactivarCombate(); return;
         }
-        else if (transform.position.x >=
-                 limiteDerecho)
-        {
-            direccionPatrulla = -1f;
-        }
-
-
-        // =====================================================
-        // ALTURA FIJA
-        // =====================================================
-
-        float diferenciaY =
-            alturaBaseY -
-            transform.position.y;
-
-        float velocidadY =
-            Mathf.Clamp(
-                diferenciaY * 2f,
-                -velocidadAjusteAltura,
-                velocidadAjusteAltura
-            );
-
-        rb.velocity =
-            new Vector2(
-                direccionPatrulla *
-                velocidadPatrulla,
-
-                velocidadY
-            );
-
-        ActualizarDireccionVisual(
-            rb.velocity.x
-        );
-
-
-        // =====================================================
-        // JUGADOR SE FUE
-        // =====================================================
-
-        if (!modoJefeDuoActivo &&
-            !jefeSolitarioPersistente &&
-            !JugadorDentroDeRango(
-                rangoAbandono
-            ))
-        {
-            DesactivarCombate();
-
-            return;
-        }
-
-
-        // =====================================================
-        // TEMPORIZADOR DE ATAQUE
-        // =====================================================
-
-        tiempoHastaAtaque -=
-            Time.fixedDeltaTime;
-
-        if (tiempoHastaAtaque <= 0f &&
-            EstaVisibleEnCamara())
-        {
-            /*
-             * ANTES:
-             *
-             * IniciarPicada();
-             *
-             * AHORA:
-             *
-             * Primero buscamos un ángulo lateral.
-             */
-            IniciarPreparacionPicada();
-        }
+        tiempoHastaAtaque -= Time.fixedDeltaTime;
+        if (tiempoHastaAtaque <= 0f && EstaVisibleEnCamara()) IniciarPreparacionPicada();
     }
 
 
@@ -831,6 +745,7 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
         tiempoActualPreparacionPicada =
             0f;
+        tiempoAnguloValido = 0f;
 
 
         // =====================================================
@@ -879,131 +794,22 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
     private void ActualizarPreparacionPicada()
     {
-        // =====================================================
-        // JUGADOR ABANDONÓ EL RANGO
-        // =====================================================
+        if (!modoJefeDuoActivo && !jefeSolitarioPersistente && !JugadorDentroDeRango(rangoAbandono))
+        { DesactivarCombate(); return; }
+        tiempoActualPreparacionPicada += Time.fixedDeltaTime;
+        if (tiempoActualPreparacionPicada >= tiempoMaximoPreparacionPicada)
+        { CancelarPreparacionPicada(); return; }
 
-        if (!modoJefeDuoActivo &&
-            !jefeSolitarioPersistente &&
-            !JugadorDentroDeRango(
-                rangoAbandono
-            ))
-        {
-            DesactivarCombate();
-
-            return;
-        }
-
-
-        // =====================================================
-        // TIEMPO MÁXIMO
-        // =====================================================
-
-        tiempoActualPreparacionPicada +=
-            Time.fixedDeltaTime;
-
-        if (tiempoActualPreparacionPicada >=
-            tiempoMaximoPreparacionPicada)
-        {
-            CancelarPreparacionPicada();
-
-            return;
-        }
-
-
-        // =====================================================
-        // POSICIÓN PREVISTA DEL PLAYER
-        // =====================================================
-
-        Vector2 jugadorPredicho =
-            ObtenerPosicionPredichaJugador();
-
-
-        // =====================================================
-        // DISTANCIA NECESARIA SEGÚN ALTURA
-        // =====================================================
-
-        float distanciaNecesaria =
-            CalcularDistanciaLateralNecesaria(
-                jugadorPredicho
-            );
-
-        /*
-         * Impedimos que el águila se vaya demasiado lejos
-         * intentando obtener un ángulo imposible.
-         */
-        distanciaNecesaria =
-            Mathf.Min(
-                distanciaNecesaria,
-                distanciaLateralMaximaPicada
-            );
-
-
-        // =====================================================
-        // X DE PREPARACIÓN
-        // =====================================================
-
-        float objetivoX =
-            jugador.position.x +
-            ladoPreparacionPicada *
-            distanciaNecesaria;
-
-        float diferenciaX =
-            objetivoX -
-            rb.position.x;
-
-
-        float velocidadX = 0f;
-
-        if (Mathf.Abs(diferenciaX) >
-            margenPreparacionPicada)
-        {
-            velocidadX =
-                Mathf.Sign(
-                    diferenciaX
-                ) *
-                velocidadPreparacionPicada;
-        }
-
-
-        // =====================================================
-        // MANTENER ALTURA ORIGINAL
-        // =====================================================
-
-        float diferenciaY =
-            alturaBaseY -
-            rb.position.y;
-
-        float velocidadY =
-            Mathf.Clamp(
-                diferenciaY * 2f,
-                -velocidadAjusteAltura,
-                velocidadAjusteAltura
-            );
-
-
-        rb.velocity =
-            new Vector2(
-                velocidadX,
-                velocidadY
-            );
-
-        ActualizarDireccionVisual(
-            rb.velocity.x
-        );
-
-
-        // =====================================================
-        // ¿YA TENEMOS UN BUEN ÁNGULO?
-        // =====================================================
-
-        if (PuedeIniciarPicadaDesdeAqui(
-            jugadorPredicho))
-        {
-            IniciarPicada(
-                jugadorPredicho
-            );
-        }
+        Vector2 prediccion = ObtenerPosicionPredichaJugador();
+        float lateral = Mathf.Min(CalcularDistanciaLateralNecesaria(prediccion) + margenPreparacionPicada, distanciaLateralMaximaPicada);
+        float x = jugador.position.x + ladoPreparacionPicada * lateral;
+        Vector2 diferencia = new Vector2(x - rb.position.x, AlturaDePlaneo() - rb.position.y);
+        var deseada = new Vector2(Mathf.Clamp(diferencia.x * 2.2f, -velocidadPreparacionPicada, velocidadPreparacionPicada),
+            Mathf.Clamp(diferencia.y * 1.8f, -velocidadAjusteAltura, velocidadAjusteAltura));
+        if (Mathf.Abs(diferencia.x) < margenPreparacionPicada * 0.1f) deseada.x = 0f;
+        AplicarVelocidadSuave(deseada, aceleracionVuelo);
+        tiempoAnguloValido = PuedeIniciarPicadaDesdeAqui(prediccion) ? tiempoAnguloValido + Time.fixedDeltaTime : 0f;
+        if (tiempoAnguloValido >= anticipacionVisualPicada) IniciarPicada(prediccion);
     }
 
 
@@ -1149,6 +955,7 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
         tiempoActualPreparacionPicada =
             0f;
+        tiempoAnguloValido = 0f;
 
         ProgramarSiguienteAtaque();
 
@@ -1162,17 +969,8 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
     private Vector2 ObtenerPosicionPredichaJugador()
     {
-        Vector2 posicionPredicha =
-            jugador.position;
-
-        if (jugadorRb != null)
-        {
-            posicionPredicha +=
-                jugadorRb.velocity *
-                anticipacionJugador;
-        }
-
-        return posicionPredicha;
+        var avance = jugadorRb != null ? Vector2.ClampMagnitude(jugadorRb.velocity * anticipacionJugador, 1.25f) : Vector2.zero;
+        return (Vector2)jugador.position + avance;
     }
 
 
@@ -1180,26 +978,15 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
     // PICADA
     // =========================================================
 
-    private void IniciarPicada(
-        Vector2 posicionObjetivo)
+    private void IniciarPicada(Vector2 posicionObjetivo)
     {
-        estadoActual =
-            EstadoAguila.Picada;
-
-        tiempoActualPicada =
-            0f;
-
-        /*
-         * El objetivo se congela al iniciar el ataque,
-         * igual que en el comportamiento original.
-         */
-        objetivoPicada =
-            posicionObjetivo;
-
-        animator.CrossFade(
-            estadoAtaque,
-            0.05f
-        );
+        estadoActual = EstadoAguila.Picada;
+        tiempoEnEstado = 0f;
+        tiempoActualPicada = 0f;
+        direccionAtaque = (posicionObjetivo - rb.position).normalized;
+        if (direccionAtaque.sqrMagnitude < 0.01f) direccionAtaque = Vector2.down;
+        objetivoPicada = posicionObjetivo + direccionAtaque * 0.9f;
+        animator.CrossFade(estadoAtaque, 0.05f);
     }
 
 
@@ -1209,62 +996,11 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
     private void ActualizarPicada()
     {
-        tiempoActualPicada +=
-            Time.fixedDeltaTime;
-
-        Vector2 diferencia =
-            objetivoPicada -
-            rb.position;
-
-        Vector2 direccion =
-            diferencia.normalized;
-
-        Vector2 velocidad =
-            direccion *
-            velocidadPicada;
-
-        rb.velocity =
-            velocidad;
-
-        ActualizarDireccionVisual(
-            velocidad.x
-        );
-
-
-        // =====================================================
-        // SUELO
-        // =====================================================
-
-        if (SueloDemasiadoCerca())
-        {
-            IniciarRetirada();
-
-            return;
-        }
-
-
-        // =====================================================
-        // TIEMPO MÁXIMO
-        // =====================================================
-
-        if (tiempoActualPicada >=
-            tiempoMaximoPicada)
-        {
-            IniciarRetirada();
-
-            return;
-        }
-
-
-        // =====================================================
-        // LLEGÓ AL OBJETIVO
-        // =====================================================
-
-        if (diferencia.magnitude <=
-            0.35f)
-        {
-            IniciarRetirada();
-        }
+        tiempoActualPicada += Time.fixedDeltaTime;
+        AplicarVelocidadSuave(direccionAtaque * velocidadPicada, aceleracionAtaque);
+        // Commit to a pass. Never reverse or home in on a point after overshooting it.
+        if (Vector2.Dot(objetivoPicada - rb.position, direccionAtaque) <= 0f ||
+            SueloDemasiadoCerca() || tiempoActualPicada >= tiempoMaximoPicada) IniciarRetirada();
     }
 
 
@@ -1274,15 +1010,11 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
     private bool SueloDemasiadoCerca()
     {
-        RaycastHit2D golpe =
-            Physics2D.Raycast(
-                rb.position,
-                Vector2.down,
-                distanciaMinimaSuelo,
-                capaSuelo
-            );
-
-        return golpe.collider != null;
+        var col = GetComponent<Collider2D>();
+        float margen = Mathf.Max(distanciaMinimaSuelo, col != null ? col.bounds.extents.y + 0.12f : 0.7f);
+        if (rb.velocity.y < -0.1f && Physics2D.Raycast(rb.position, Vector2.down, margen, capaSuelo).collider != null) return true;
+        return rb.velocity.sqrMagnitude > 1f && Physics2D.Raycast(rb.position, rb.velocity.normalized,
+            Mathf.Min(1.4f, rb.velocity.magnitude * 0.12f), capaSuelo).collider != null;
     }
 
 
@@ -1313,6 +1045,7 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
         estadoActual =
             EstadoAguila.Retirada;
+        tiempoEnEstado = 0f;
 
         float lado =
             Mathf.Sign(
@@ -1334,7 +1067,7 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
                 lado *
                 distanciaLateralRetirada,
 
-                alturaBaseY
+                AlturaDePlaneo()
             );
 
         ReproducirIdle();
@@ -1378,79 +1111,14 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
     public void ForzarEvasion()
     {
-        if (jugador == null)
-            return;
-
-        /*
-         * Si estaba atacando, la evasión ARRUINA inmediatamente
-         * ese ataque. Desde este momento deja de estar en Picada
-         * y, gracias a IFiltroDanoContacto, tampoco puede hacer
-         * daño por tocar al jugador mientras esquiva.
-         */
+        if (!EstaViva || jugador == null || estadoActual == EstadoAguila.Golpeada) return;
         duoIgnorarEvasion = false;
-
-        estadoActual =
-            EstadoAguila.Evasion;
-
+        estadoActual = EstadoAguila.Evasion;
         tiempoActualPicada = 0f;
-
-        float lado =
-            Mathf.Sign(
-                transform.position.x -
-                jugador.position.x
-            );
-
-        if (Mathf.Abs(lado) <
-            0.01f)
-        {
-            /*
-             * Si está prácticamente encima del jugador,
-             * elegimos el lado contrario a su movimiento
-             * horizontal actual cuando sea posible.
-             */
-            if (Mathf.Abs(rb.velocity.x) >
-                0.05f)
-            {
-                lado =
-                    -Mathf.Sign(
-                        rb.velocity.x
-                    );
-            }
-            else
-            {
-                lado =
-                    Random.value < 0.5f
-                        ? -1f
-                        : 1f;
-            }
-        }
-
-        objetivoEvasion =
-            rb.position +
-            new Vector2(
-                lado *
-                distanciaEvasionHorizontal,
-
-                distanciaEvasionVertical
-            );
-
-        /*
-         * Cambiamos la velocidad YA, sin esperar al próximo
-         * FixedUpdate. Así no conserva durante un instante
-         * la velocidad de la picada hacia el jugador.
-         */
-        Vector2 direccionEvasion =
-            (objetivoEvasion -
-             rb.position).normalized;
-
-        rb.velocity =
-            direccionEvasion *
-            velocidadEvasion;
-
-        ActualizarDireccionVisual(
-            rb.velocity.x
-        );
-
+        float lado = Mathf.Sign(rb.position.x - jugador.position.x);
+        if (Mathf.Abs(rb.position.x - jugador.position.x) < 0.1f) lado = rb.velocity.x < 0f ? 1f : -1f;
+        float variacion = Random.Range(0.92f, 1.08f);
+        objetivoEvasion = rb.position + new Vector2(lado * distanciaEvasionHorizontal * variacion, distanciaEvasionVertical);
         ReproducirIdle();
     }
 
@@ -1473,6 +1141,8 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
     public void RegistrarGolpeRecibido(
         DamageInfo damageInfo)
     {
+        if (!EstaViva) return;
+        duoIgnorarEvasion = false;
         estadoActual =
             EstadoAguila.Golpeada;
 
@@ -1695,41 +1365,13 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
     // MOVIMIENTO HACIA OBJETIVO
     // =========================================================
 
-    private bool MoverHacia(
-        Vector2 destino,
-        float velocidadMaxima)
+    private bool MoverHacia(Vector2 destino, float velocidadMaxima)
     {
-        Vector2 diferencia =
-            destino -
-            rb.position;
-
-        if (diferencia.magnitude <=
-            distanciaLlegada)
-        {
-            rb.velocity =
-                Vector2.zero;
-
-            return true;
-        }
-
-        Vector2 velocidadNecesaria =
-            diferencia /
-            Time.fixedDeltaTime;
-
-        Vector2 velocidad =
-            Vector2.ClampMagnitude(
-                velocidadNecesaria,
-                velocidadMaxima
-            );
-
-        rb.velocity =
-            velocidad;
-
-        ActualizarDireccionVisual(
-            velocidad.x
-        );
-
-        return false;
+        Vector2 diferencia = destino - rb.position;
+        float aceleracion = estadoActual == EstadoAguila.Evasion ? aceleracionAtaque * 1.2f : aceleracionVuelo * 1.65f;
+        float velocidad = Mathf.Min(velocidadMaxima, Mathf.Sqrt(2f * aceleracion * Mathf.Max(0f, diferencia.magnitude - distanciaLlegada * 0.5f)));
+        AplicarVelocidadSuave(diferencia.normalized * velocidad, aceleracion);
+        return diferencia.sqrMagnitude <= distanciaLlegada * distanciaLlegada;
     }
 
 
@@ -1737,20 +1379,9 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
     // SPRITE
     // =========================================================
 
-    private void ActualizarDireccionVisual(
-        float movimientoX)
+    private void ActualizarDireccionVisual(float movimientoX)
     {
-        if (Mathf.Abs(movimientoX) <
-            0.05f)
-        {
-            return;
-        }
-
-        /*
-         * Sprite original mira a la izquierda.
-         */
-        spriteRenderer.flipX =
-            movimientoX > 0f;
+        if (Mathf.Abs(movimientoX) > 0.2f) spriteRenderer.flipX = movimientoX > 0f;
     }
 
 
@@ -1823,52 +1454,19 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
     private void ActualizarDuoOrbita()
     {
-        float deltaAngulo =
-            duoVelocidadAngular *
-            Time.fixedDeltaTime;
-
-        duoAnguloActual +=
-            deltaAngulo;
-
-        duoVueltasActuales +=
-            Mathf.Abs(deltaAngulo) /
-            360f;
-
-        float radianes =
-            duoAnguloActual *
-            Mathf.Deg2Rad;
-
-        Vector2 offsetOrbita =
-            new Vector2(
-                Mathf.Cos(radianes),
-                Mathf.Sin(radianes)
-            ) *
-            duoRadioOrbita;
-
-        Vector2 destinoOrbita =
-            duoCentroOrbita +
-            offsetOrbita;
-
-        float velocidadOrbita =
-            Mathf.Abs(
-                duoVelocidadAngular
-            ) *
-            Mathf.Deg2Rad *
-            duoRadioOrbita;
-
-        velocidadOrbita *=
-            1.20f;
-
-        velocidadOrbita =
-            Mathf.Max(
-                velocidadOrbita,
-                2f
-            );
-
-        MoverHacia(
-            destinoOrbita,
-            velocidadOrbita
-        );
+        float angularDeseada = duoVelocidadAngular * (1f + 0.05f * Mathf.Sin(duoAnguloActual * Mathf.Deg2Rad * 2f));
+        duoAngularActual = Mathf.MoveTowards(duoAngularActual, angularDeseada, 260f * Time.fixedDeltaTime);
+        float delta = duoAngularActual * Time.fixedDeltaTime;
+        duoAnguloActual += delta;
+        duoVueltasActuales += Mathf.Abs(delta) / 360f;
+        duoRadioActual = Mathf.MoveTowards(duoRadioActual, duoRadioOrbita, 1.8f * Time.fixedDeltaTime);
+        float r = duoAnguloActual * Mathf.Deg2Rad;
+        Vector2 radial = new Vector2(Mathf.Cos(r), Mathf.Sin(r) * proporcionVerticalOrbita);
+        Vector2 tangente = new Vector2(-Mathf.Sin(r), Mathf.Cos(r) * proporcionVerticalOrbita);
+        Vector2 destino = duoCentroOrbita + radial * duoRadioActual;
+        Vector2 deseada = tangente * (duoAngularActual * Mathf.Deg2Rad * duoRadioActual) + (destino - rb.position) * 4f;
+        float limite = Mathf.Abs(duoVelocidadAngular) * Mathf.Deg2Rad * duoRadioOrbita + 3f;
+        AplicarVelocidadSuave(Vector2.ClampMagnitude(deseada, limite), aceleracionOrbita);
     }
 
 
@@ -1878,35 +1476,8 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
     private void ActualizarDuoLanzamiento()
     {
-        Vector2 diferencia =
-            duoDestino -
-            rb.position;
-
-        if (diferencia.magnitude <=
-            0.35f)
-        {
-            IniciarRetirada();
-
-            return;
-        }
-
-        Vector2 direccion =
-            diferencia.normalized;
-
-        rb.velocity =
-            direccion *
-            duoVelocidadMovimiento;
-
-        ActualizarDireccionVisual(
-            rb.velocity.x
-        );
-
-        if (SueloDemasiadoCerca())
-        {
-            IniciarRetirada();
-
-            return;
-        }
+        AplicarVelocidadSuave(direccionAtaque * duoVelocidadMovimiento, aceleracionAtaque);
+        if (Vector2.Dot(duoDestino - rb.position, direccionAtaque) <= 0f || SueloDemasiadoCerca()) IniciarRetirada();
     }
 
 
@@ -1916,23 +1487,8 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
     private void ActualizarDuoHostigamiento()
     {
-        Vector2 diferencia =
-            duoDestino -
-            rb.position;
-
-        if (diferencia.magnitude <=
-            distanciaLlegada)
-        {
-            rb.velocity =
-                Vector2.zero;
-
-            return;
-        }
-
-        MoverHacia(
-            duoDestino,
-            duoVelocidadMovimiento
-        );
+        Vector2 destino = duoDestino + Vector2.up * (Mathf.Sin(fasePlaneo) * amplitudPlaneo * 0.3f);
+        MoverHacia(destino, duoVelocidadMovimiento);
     }
 
 
@@ -1955,11 +1511,12 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
      */
     public void ConvertirseEnJefeSolitario()
     {
-        if (!gameObject.activeInHierarchy)
+        if (!EstaViva)
             return;
 
         jefeSolitarioPersistente =
             true;
+        if (jugador != null) centroPatrullaX = jugador.position.x;
 
         modoJefeDuoActivo =
             false;
@@ -1972,6 +1529,7 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
         tiempoActualPreparacionPicada =
             0f;
+        tiempoAnguloValido = 0f;
 
         /*
          * Si justo estaba reaccionando a un golpe o realizando
@@ -2047,7 +1605,7 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
         float anguloInicial,
         int vueltasObjetivo)
     {
-        if (jefeSolitarioPersistente)
+        if (!PuedeSerDirigidaPorPareja)
             return;
 
         combateActivo =
@@ -2055,9 +1613,13 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
         estadoActual =
             EstadoAguila.DuoOrbita;
+        tiempoEnEstado = 0f;
+        duoIgnorarEvasion = false;
 
         duoCentroOrbita =
             centro;
+        duoRadioActual = Mathf.Max(0.25f, Vector2.Distance(rb.position, centro));
+        duoAngularActual = 0f;
 
         duoRadioOrbita =
             Mathf.Max(
@@ -2108,7 +1670,7 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
         float velocidad,
         bool ignorarEvasion)
     {
-        if (jefeSolitarioPersistente)
+        if (!PuedeSerDirigidaPorPareja)
             return;
 
         combateActivo =
@@ -2116,9 +1678,13 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
         estadoActual =
             EstadoAguila.DuoLanzamiento;
+        tiempoEnEstado = 0f;
 
         duoDestino =
             destino;
+
+        direccionAtaque = (destino - rb.position).normalized;
+        if (direccionAtaque.sqrMagnitude < 0.01f) direccionAtaque = Vector2.right;
 
         duoVelocidadMovimiento =
             Mathf.Max(
@@ -2144,7 +1710,7 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
         Vector2 destino,
         float velocidad)
     {
-        if (jefeSolitarioPersistente)
+        if (!PuedeSerDirigidaPorPareja)
             return;
 
         combateActivo =
@@ -2152,6 +1718,8 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
         estadoActual =
             EstadoAguila.DuoHostigamiento;
+        tiempoEnEstado = 0f;
+        duoIgnorarEvasion = false;
 
         duoDestino =
             destino;
@@ -2172,7 +1740,7 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
 
     public void SalirDeControlDuo()
     {
-        if (!gameObject.activeInHierarchy)
+        if (!EstaViva)
             return;
 
         IniciarRetirada();
@@ -2203,4 +1771,39 @@ public class AguilaEnemy : MonoBehaviour, IFiltroDanoContacto
             derecha
         );
     }
+
+    private void ActualizarPlaneo(float centro, float ancho)
+    {
+        float mitad = Mathf.Max(0.7f, ancho * 0.5f);
+        if (rb.position.x >= centro + mitad - 0.45f) direccionPatrulla = -1f;
+        else if (rb.position.x <= centro - mitad + 0.45f) direccionPatrulla = 1f;
+        var destino = new Vector2(centro + direccionPatrulla * mitad,
+            AlturaDePlaneo() + Mathf.Sin(fasePlaneo) * amplitudPlaneo);
+        var deseada = new Vector2(Mathf.Clamp((destino.x-rb.position.x)*2f, -velocidadPatrulla, velocidadPatrulla) * variacionVuelo,
+            Mathf.Clamp((destino.y-rb.position.y)*1.8f, -velocidadAjusteAltura, velocidadAjusteAltura));
+        AplicarVelocidadSuave(deseada, aceleracionVuelo);
+    }
+
+    private float AlturaDePlaneo()
+    {
+        return combateActivo && jugador != null ? Mathf.Max(alturaBaseY, jugador.position.y + 2.8f) : alturaBaseY;
+    }
+
+    private void AplicarVelocidadSuave(Vector2 deseada, float aceleracion)
+    {
+        rb.velocity = Vector2.MoveTowards(rb.velocity, deseada, Mathf.Max(0.1f, aceleracion) * Time.fixedDeltaTime);
+        ActualizarDireccionVisual(rb.velocity.x);
+    }
+
+    private void AlSerDerrotada(DamageInfo dano)
+    {
+        duoIgnorarEvasion = false;
+        rb.velocity = Vector2.zero;
+    }
+
+    public void ActualizarDestinoHostigamientoDuo(Vector2 destino)
+    {
+        if (estadoActual == EstadoAguila.DuoHostigamiento) duoDestino = destino;
+    }
+
 }

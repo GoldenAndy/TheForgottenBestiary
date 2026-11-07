@@ -12,10 +12,19 @@ public class EspadaHitbox : MonoBehaviour
     [SerializeField] private LayerMask capasObjetivo = ~0;
 
     private readonly HashSet<Component> objetivosGolpeados = new();
+    private Collider2D hitbox;
+    private Transform propietario;
+
+    // Observation only: enemies can react to visible swings, including consecutive attacks.
+    public int SecuenciaAtaque { get; private set; }
+    public bool EstaActiva => isActiveAndEnabled && hitbox != null && hitbox.enabled && gameObject.activeInHierarchy;
 
     private void Awake()
     {
         Collider2D col = GetComponent<Collider2D>();
+        hitbox = col;
+        var cuerpo = GetComponentInParent<Rigidbody2D>();
+        propietario = cuerpo != null ? cuerpo.transform : transform.root;
         col.isTrigger = true;
         col.enabled = false;
     }
@@ -27,6 +36,7 @@ public class EspadaHitbox : MonoBehaviour
 
     public void ReiniciarGolpes()
     {
+        SecuenciaAtaque++;
         objetivosGolpeados.Clear();
     }
 
@@ -45,7 +55,7 @@ public class EspadaHitbox : MonoBehaviour
         if (other == null) return;
 
         // Evita golpear al propio Player o a sus hijos.
-        if (other.transform.IsChildOf(transform.root)) return;
+        if (other.transform.IsChildOf(propietario)) return;
 
         // Revisa si el objeto está en una capa válida.
         if (!EstaEnCapaObjetivo(other.gameObject.layer)) return;
@@ -65,7 +75,7 @@ public class EspadaHitbox : MonoBehaviour
 
         Vector2 puntoImpacto = other.ClosestPoint(transform.position);
 
-        Vector2 direccion = ((Vector2)other.bounds.center - (Vector2)transform.root.position).normalized;
+        Vector2 direccion = ((Vector2)other.bounds.center - (Vector2)propietario.position).normalized;
 
         if (direccion == Vector2.zero)
         {
@@ -74,7 +84,7 @@ public class EspadaHitbox : MonoBehaviour
 
         DamageInfo damageInfo = new DamageInfo(
             dano,
-            transform.root.gameObject,
+            propietario.gameObject,
             puntoImpacto,
             direccion,
             fuerzaEmpuje

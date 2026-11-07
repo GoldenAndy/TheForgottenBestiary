@@ -1,217 +1,53 @@
-using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(EnemigoContacto))]
 public class SapoContactoJugador : MonoBehaviour
 {
-    [Header("Referencias")]
     [SerializeField] private Collider2D cuerpoSapo;
     [SerializeField] private string playerTag = "Player";
-
-    private EnemigoContacto enemigoContacto;
-
-    private Coroutine coroutineIgnorar;
-
-    private readonly List<Collider2D> collidersIgnorados =
-        new List<Collider2D>();
-
+    private EnemigoContacto contacto;
+    private SapoEnemy sapo;
+    private PlayerVida vidaJugador;
+    private float hasta;
+    private readonly List<Collider2D> ignorados = new List<Collider2D>();
     private void Awake()
     {
-        enemigoContacto =
-            GetComponent<EnemigoContacto>();
-
-        if (cuerpoSapo == null)
-        {
-            Collider2D[] colliders =
-                GetComponents<Collider2D>();
-
-            foreach (Collider2D col in colliders)
-            {
-                if (col != null && !col.isTrigger)
-                {
-                    cuerpoSapo = col;
-                    break;
-                }
-            }
-        }
+        contacto = GetComponent<EnemigoContacto>(); sapo = GetComponent<SapoEnemy>();
+        if (cuerpoSapo == null) cuerpoSapo = GetComponent<Collider2D>();
     }
-
-    private void OnEnable()
+    private void OnEnable() { contacto.OnDanoAplicado += AlDanar; }
+    private void OnDisable() { contacto.OnDanoAplicado -= AlDanar; Restaurar(); }
+    private void AlDanar(Vector2 direccion)
     {
-        if (enemigoContacto != null)
-        {
-            enemigoContacto.OnDanoAplicado +=
-                AlDañarJugador;
-        }
+        var jugador = sapo != null ? sapo.Jugador : null;
+        if (jugador == null) { var go = GameObject.FindGameObjectWithTag(playerTag); if (go != null) jugador = go.transform; }
+        if (jugador == null) return;
+        vidaJugador = jugador.GetComponent<PlayerVida>();
+        foreach (var col in jugador.GetComponentsInChildren<Collider2D>())
+            if (!col.isTrigger) PermitirPaso(col, 0.25f);
     }
-
-    private void OnDisable()
+    public void PermitirPaso(Collider2D col, float duracion)
     {
-        if (enemigoContacto != null)
-        {
-            enemigoContacto.OnDanoAplicado -=
-                AlDañarJugador;
-        }
-
-        RestaurarColisiones();
+        if (cuerpoSapo == null || col == null || col.isTrigger || col.GetComponentInParent<EspadaHitbox>() != null) return;
+        hasta = Mathf.Max(hasta, Time.time + duracion);
+        if (!ignorados.Contains(col)) { Physics2D.IgnoreCollision(cuerpoSapo, col, true); ignorados.Add(col); }
     }
-
-    private void AlDañarJugador(Vector2 direccion)
+    private void FixedUpdate()
     {
-        GameObject jugador =
-            GameObject.FindGameObjectWithTag(
-                playerTag
-            );
-
-        if (jugador == null)
-            return;
-
-        PlayerVida playerVida =
-            jugador.GetComponent<PlayerVida>();
-
-        if (playerVida == null)
+        if (ignorados.Count == 0 || Time.time < hasta || (vidaJugador != null && vidaJugador.EsInvulnerable)) return;
+        for (int i = ignorados.Count - 1; i >= 0; i--)
         {
-            playerVida =
-                jugador.GetComponentInChildren<PlayerVida>();
+            var col = ignorados[i];
+            if (col != null && cuerpoSapo.bounds.Intersects(col.bounds)) continue;
+            if (col != null) Physics2D.IgnoreCollision(cuerpoSapo, col, false);
+            ignorados.RemoveAt(i);
         }
-
-        if (playerVida == null)
-            return;
-
-        if (coroutineIgnorar != null)
-        {
-            StopCoroutine(
-                coroutineIgnorar
-            );
-
-            RestaurarColisiones();
-        }
-
-        coroutineIgnorar =
-            StartCoroutine(
-                IgnorarMientrasInvulnerable(
-                    jugador,
-                    playerVida
-                )
-            );
+        if (ignorados.Count == 0) vidaJugador = null;
     }
-
-    private IEnumerator IgnorarMientrasInvulnerable(
-        GameObject jugador,
-        PlayerVida playerVida)
+    private void Restaurar()
     {
-        /*
-         * Esperamos un frame para garantizar
-         * que PlayerVida haya activado su
-         * estado de invulnerabilidad.
-         */
-        yield return null;
-
-        if (cuerpoSapo == null)
-        {
-            coroutineIgnorar = null;
-            yield break;
-        }
-
-        Collider2D[] collidersJugador =
-            jugador.GetComponentsInChildren<Collider2D>();
-
-        foreach (Collider2D col in collidersJugador)
-        {
-            if (col == null)
-                continue;
-
-            /*
-             * No tocar triggers como la espada,
-             * zonas especiales, etc.
-             */
-            if (col.isTrigger)
-                continue;
-
-            /*
-             * Tampoco queremos ignorar accidentalmente
-             * una hitbox de espada.
-             */
-            if (col.GetComponentInParent<EspadaHitbox>() != null)
-                continue;
-
-            Physics2D.IgnoreCollision(
-                cuerpoSapo,
-                col,
-                true
-            );
-
-            collidersIgnorados.Add(col);
-        }
-
-        /*
-         * Mientras parpadea/invulnerable,
-         * puede atravesar físicamente al sapo.
-         */
-        while (playerVida != null &&
-               playerVida.EsInvulnerable)
-        {
-            yield return null;
-        }
-
-        /*
-         * Incluso terminada la invulnerabilidad,
-         * esperamos a que el jugador haya salido
-         * del cuerpo del sapo.
-         *
-         * Así no reactivamos la colisión mientras
-         * ambos están uno dentro del otro.
-         */
-        bool siguenSolapados = true;
-
-        while (siguenSolapados)
-        {
-            siguenSolapados = false;
-
-            foreach (Collider2D col in collidersIgnorados)
-            {
-                if (col == null)
-                    continue;
-
-                if (cuerpoSapo.bounds.Intersects(
-                    col.bounds
-                ))
-                {
-                    siguenSolapados = true;
-                    break;
-                }
-            }
-
-            if (siguenSolapados)
-            {
-                yield return null;
-            }
-        }
-
-        RestaurarColisiones();
-
-        coroutineIgnorar = null;
-    }
-
-    private void RestaurarColisiones()
-    {
-        if (cuerpoSapo != null)
-        {
-            foreach (Collider2D col
-                     in collidersIgnorados)
-            {
-                if (col == null)
-                    continue;
-
-                Physics2D.IgnoreCollision(
-                    cuerpoSapo,
-                    col,
-                    false
-                );
-            }
-        }
-
-        collidersIgnorados.Clear();
+        if (cuerpoSapo != null) foreach (var col in ignorados) if (col != null) Physics2D.IgnoreCollision(cuerpoSapo, col, false);
+        ignorados.Clear(); vidaJugador = null;
     }
 }

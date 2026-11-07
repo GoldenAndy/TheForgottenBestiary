@@ -1,173 +1,47 @@
-using UnityEngine;
+﻿using UnityEngine;
 
-[RequireComponent(typeof(Rigidbody2D))]
-[RequireComponent(typeof(Collider2D))]
+[DefaultExecutionOrder(-100), RequireComponent(typeof(Rigidbody2D)), RequireComponent(typeof(Collider2D))]
 public class SapoSensorSuelo : MonoBehaviour
 {
-    [Header("Detección de suelo")]
+    [Header("Deteccion de suelo")]
     [SerializeField] private LayerMask groundLayer;
-
-    [SerializeField]
-    private float anchoDetector = 0.65f;
-
-    [SerializeField]
-    private float alturaDetector = 0.08f;
-
-    [SerializeField]
-    private float separacionSuelo = 0.04f;
-
+    [SerializeField] private float anchoDetector = 0.65f;
+    [SerializeField] private float alturaDetector = 0.08f;
+    [SerializeField] private float separacionSuelo = 0.04f;
     [Header("Estabilidad")]
-    [Tooltip(
-        "Pequeño tiempo de confirmación para evitar " +
-        "que IsGrounded parpadee entre true y false."
-    )]
-    [SerializeField]
-    private float tiempoConfirmacionSuelo = 0.04f;
-
-    [Tooltip(
-        "Si está subiendo más rápido que esto, " +
-        "se considera inmediatamente fuera del suelo."
-    )]
-    [SerializeField]
-    private float velocidadSalidaSuelo = 0.15f;
-
+    [SerializeField] private float tiempoConfirmacionSuelo = 0.04f;
+    [SerializeField] private float velocidadSalidaSuelo = 0.15f;
     public bool EnSuelo { get; private set; }
-
+    public LayerMask CapasSuelo => groundLayer;
     private Rigidbody2D rb;
     private Collider2D cuerpoCollider;
-
     private float tiempoDetectandoSuelo;
-
-    private void Awake()
+    private readonly Collider2D[] encontrados = new Collider2D[12];
+    private void Awake() { rb = GetComponent<Rigidbody2D>(); cuerpoCollider = GetComponent<Collider2D>(); }
+    private void OnDisable() { EnSuelo = false; tiempoDetectandoSuelo = 0f; }
+    private void FixedUpdate()
     {
-        rb = GetComponent<Rigidbody2D>();
-        cuerpoCollider = GetComponent<Collider2D>();
-    }
-
-    private void Update()
-    {
-        /*
-         * Si el sapo acaba de saltar, dejamos de considerarlo
-         * en suelo inmediatamente aunque el detector todavía
-         * roce el piso durante un frame.
-         */
         if (rb.velocity.y > velocidadSalidaSuelo)
+        { EnSuelo = false; tiempoDetectandoSuelo = 0f; return; }
+        Bounds b = cuerpoCollider.bounds;
+        Vector2 centro = new Vector2(b.center.x, b.min.y - separacionSuelo * 0.5f);
+        Vector2 tamano = new Vector2(b.size.x * anchoDetector, Mathf.Max(alturaDetector, separacionSuelo * 2f + 0.02f));
+        int cantidad = Physics2D.OverlapBoxNonAlloc(centro, tamano, 0f, encontrados, groundLayer);
+        bool detectado = false;
+        for (int i = 0; i < cantidad; i++)
         {
-            EnSuelo = false;
-            tiempoDetectandoSuelo = 0f;
-
-            return;
+            var col = encontrados[i];
+            if (col == null || col.isTrigger || col.attachedRigidbody == rb || col.GetComponentInParent<SapoEnemy>() != null) continue;
+            detectado = true; break;
         }
-
-        bool detectado =
-            DetectarSueloFisico();
-
-        if (detectado)
-        {
-            tiempoDetectandoSuelo +=
-                Time.deltaTime;
-
-            if (tiempoDetectandoSuelo >=
-                tiempoConfirmacionSuelo)
-            {
-                EnSuelo = true;
-            }
-        }
-        else
-        {
-            tiempoDetectandoSuelo = 0f;
-            EnSuelo = false;
-        }
+        tiempoDetectandoSuelo = detectado ? tiempoDetectandoSuelo + Time.fixedDeltaTime : 0f;
+        EnSuelo = detectado && tiempoDetectandoSuelo >= tiempoConfirmacionSuelo;
     }
-
-    private bool DetectarSueloFisico()
-    {
-        Bounds bounds =
-            cuerpoCollider.bounds;
-
-        Vector2 centro =
-            new Vector2(
-                bounds.center.x,
-                bounds.min.y - separacionSuelo
-            );
-
-        Vector2 tamano =
-            new Vector2(
-                bounds.size.x * anchoDetector,
-                alturaDetector
-            );
-
-        Collider2D[] encontrados =
-            Physics2D.OverlapBoxAll(
-                centro,
-                tamano,
-                0f,
-                groundLayer
-            );
-
-        foreach (Collider2D col in encontrados)
-        {
-            if (col == null)
-                continue;
-
-            // Ignorar nuestro propio collider.
-            if (col == cuerpoCollider)
-                continue;
-
-            // Ignorar hijos propios como StompZone.
-            if (col.transform.IsChildOf(transform))
-                continue;
-
-            // Ignorar cualquier collider del mismo Rigidbody.
-            if (col.attachedRigidbody == rb)
-                continue;
-
-            // ============================================
-            // IGNORAR OTROS SAPOS
-            // ============================================
-
-            SapoEnemy otroSapo =
-                col.GetComponentInParent<SapoEnemy>();
-
-            if (otroSapo != null)
-                continue;
-
-            return true;
-        }
-
-        return false;
-    }
-
     private void OnDrawGizmosSelected()
     {
-        Collider2D col =
-            GetComponent<Collider2D>();
-
-        if (col == null)
-            return;
-
-        Bounds bounds =
-            col.bounds;
-
-        Vector3 centro =
-            new Vector3(
-                bounds.center.x,
-                bounds.min.y - separacionSuelo,
-                transform.position.z
-            );
-
-        Vector3 tamano =
-            new Vector3(
-                bounds.size.x * anchoDetector,
-                alturaDetector,
-                0f
-            );
-
-        Gizmos.color = Color.green;
-
-        Gizmos.DrawWireCube(
-            centro,
-            tamano
-        );
+        var col = GetComponent<Collider2D>(); if (col == null) return;
+        var b = col.bounds; Gizmos.color = Color.green;
+        Gizmos.DrawWireCube(new Vector3(b.center.x, b.min.y - separacionSuelo * 0.5f, transform.position.z),
+            new Vector3(b.size.x * anchoDetector, Mathf.Max(alturaDetector, separacionSuelo * 2f + 0.02f), 0f));
     }
 }

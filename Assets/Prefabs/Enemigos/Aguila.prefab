@@ -264,6 +264,13 @@ MonoBehaviour:
   retrocesoGolpe: 5.5
   impulsoVerticalGolpe: 1.2
   frenadoTrasGolpe: 10
+  aceleracionVuelo: 9
+  aceleracionAtaque: 32
+  aceleracionOrbita: 48
+  amplitudPlaneo: 0.22
+  frecuenciaPlaneo: 1.25
+  anticipacionVisualPicada: 0.18
+  proporcionVerticalOrbita: 0.72
   estadoIdle: Aguila_Idle
   estadoAtaque: Aguila_Ataque
   estadoGolpeada: Aguila_Golpeada
@@ -311,16 +318,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   radioBuscarPareja: 10
   radioActivacionJefe: 12
-  cooldownMin: 0.8
-  cooldownMax: 1.5
+  cooldownMin: 1.2
+  cooldownMax: 2.2
   distanciaHostigamiento: 1.8
   velocidadHostigamiento: 6
   velocidadAtaquePinza: 10.5
   duracionHostigamiento: 1.1
   radioOrbita: 2.2
-  velocidadAngular: 360
+  velocidadAngular: 250
   vueltasMinimas: 1
-  vueltasMaximas: 5
+  vueltasMaximas: 3
   velocidadSalidaSupergiro: 12
   distanciaMaximaInicioSuperGiro: 3.5
   probabilidadSuperGiro: 0.4
@@ -329,6 +336,10 @@ MonoBehaviour:
   distanciaCruceAtaque: 3
   toleranciaPreparacionLateral: 0.35
   offsetAlturaAtaqueLateral: 0
+  retrasoEntreSalidas: 0.3
+  tiempoMaximoColocacion: 2.5
+  tiempoMaximoPatron: 18
+  velocidadDerivaOrbita: 0.85
 --- !u!114 &1364621227940959029
 MonoBehaviour:
   m_ObjectHideFlags: 0
