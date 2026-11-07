@@ -8,6 +8,7 @@ public class EnemigoVida : MonoBehaviour, IDamageable
     [SerializeField] private bool destruirAlMorir = true;
 
     public event Action<DamageInfo> OnDanoRecibido;
+    public event Action<DamageInfo> OnDerrotado;
 
     private int vidaActual;
     private Rigidbody2D rb;
@@ -52,7 +53,7 @@ public class EnemigoVida : MonoBehaviour, IDamageable
 
         if (vidaActual <= 0)
         {
-            Morir();
+            Morir(damageInfo);
         }
     }
 
@@ -89,12 +90,14 @@ public class EnemigoVida : MonoBehaviour, IDamageable
         );
     }
 
-    private void Morir()
+    private void Morir(DamageInfo damageInfo)
     {
         if (estaMuerto)
             return;
 
         estaMuerto = true;
+
+        OnDerrotado?.Invoke(damageInfo);
 
         Debug.Log(
             $"{gameObject.name} fue derrotado."

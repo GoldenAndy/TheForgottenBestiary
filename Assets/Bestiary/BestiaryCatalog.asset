@@ -1,0 +1,67 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0c9218d7cb1b6b2428ed12ee47992770, type: 3}
+  m_Name: BestiaryCatalog
+  m_EditorClassIdentifier: 
+  openingLetter: "Mi tesoro no espera en ning\xFAn mapa.\n\nEl camino duerme en las
+    criaturas del bosque. Aprende sus h\xE1bitos y vence su resistencia: cada encuentro
+    devolver\xE1 la memoria a estas p\xE1ginas.\n\nSolo quien revele sus secretos
+    ser\xE1 digno de mi \xFAltimo escondite. Cuando la \xFAltima hoja despierte,
+    vuelve a leer."
+  entries:
+  - species: 0
+    speciesName: "Murci\xE9lago"
+    epithet: "Vig\xEDa de las sombras"
+    defeatsRequired: 5
+    portrait: {fileID: 21300000, guid: 0d7556624be8e5d4b9f449580eb2a0fb, type: 3}
+    portraitFrames:
+    - {fileID: 21300000, guid: 0d7556624be8e5d4b9f449580eb2a0fb, type: 3}
+    - {fileID: 21300000, guid: 19cad7ccc50a32e4383d329466b17b75, type: 3}
+    - {fileID: 21300000, guid: 000ce0b34d5f6a64ebf6b3c6698f367d, type: 3}
+    habitat: Copas y refugios oscuros
+    description: Descansa colgado hasta detectar un intruso. Lo persigue por el aire
+      y regresa a su refugio cuando el peligro se aleja.
+    fieldNotes: Tras un golpe o una embestida necesita recuperarse. Aprovecha esa
+      pausa para responder con la espada.
+    grandfatherNote: "El silencio del bosque tambi\xE9n tiene alas."
+  - species: 1
+    speciesName: Sapo
+    epithet: "Guardi\xE1n del sotobosque"
+    defeatsRequired: 10
+    portrait: {fileID: 21300000, guid: ffbaba4f28d53a74485701bb690b7d27, type: 3}
+    portraitFrames:
+    - {fileID: 21300000, guid: ffbaba4f28d53a74485701bb690b7d27, type: 3}
+    - {fileID: 21300000, guid: aff0d7d6bea1bd74b8ac3976af9537a2, type: 3}
+    - {fileID: 21300000, guid: ce2aa53d9c65763469b9bf6b09b24e13, type: 3}
+    - {fileID: 21300000, guid: a5706d4522b319c4282ae88195ad251f, type: 3}
+    habitat: Suelo y claros del bosque
+    description: Alterna saltos cortos y largos para acercarse, huir y rodear a quien
+      invade su territorio. Rara vez permanece quieto.
+    fieldNotes: "La espada y el pisot\xF3n pueden herirlo. Espera su aterrizaje y
+      cae sobre su cabeza: el rebote te permitir\xE1 ganar altura."
+    grandfatherNote: "Hasta el charco m\xE1s peque\xF1o guarda un guardi\xE1n."
+  - species: 2
+    speciesName: "\xC1guila"
+    epithet: Centinela del dosel
+    defeatsRequired: 3
+    portrait: {fileID: 21300000, guid: dee923edeb3b3bb4c95b284e38677c2c, type: 3}
+    portraitFrames:
+    - {fileID: 21300000, guid: dee923edeb3b3bb4c95b284e38677c2c, type: 3}
+    - {fileID: 21300000, guid: 22fb10a65d4b3034595712ccef579afe, type: 3}
+    - {fileID: 21300000, guid: 25a344c22639b6a47b66ebb3ea8c63c0, type: 3}
+    - {fileID: 21300000, guid: 9d1f5c50255d8694e8d1548f0e8ba887, type: 3}
+    habitat: Cielo y alturas del bosque
+    description: "Vigila desde el aire y ataca en picada. Al compartir territorio
+      con otra \xE1guila, coordina maniobras m\xE1s peligrosas."
+    fieldNotes: Observa la picada y sus evasiones. Busca el instante en que expone
+      su cuerpo y responde con la espada.
+    grandfatherNote: 'No mires sus garras: aprende a leer su vuelo.'

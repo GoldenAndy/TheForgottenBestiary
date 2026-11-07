@@ -19,6 +19,8 @@ GameObject:
   - component: {fileID: 1149146153875708766}
   - component: {fileID: 6210490784233940433}
   - component: {fileID: 4640589335155070076}
+  - component: {fileID: 8578354780833995616}
+  - component: {fileID: 855201470872669442}
   m_Layer: 10
   m_Name: Sapo
   m_TagString: Untagged
@@ -183,10 +185,10 @@ Rigidbody2D:
   m_ExcludeLayers:
     serializedVersion: 2
     m_Bits: 0
-  m_Interpolate: 0
+  m_Interpolate: 1
   m_SleepingMode: 1
-  m_CollisionDetection: 0
-  m_Constraints: 0
+  m_CollisionDetection: 1
+  m_Constraints: 4
 --- !u!114 &4951288201504464230
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -273,6 +275,13 @@ MonoBehaviour:
   alturaChequeoSuelo: 3
   distanciaChequeoAterrizaje: 2.2
   spriteMiraDerecha: 0
+  anticipacionAtaque: 0.34
+  reaccionEvasion: 0.18
+  descansoEvasion: 2.3
+  recuperacionVulnerable: 0.48
+  frenadoSuelo: 22
+  estadoActual: 0
+  accionActual: 0
 --- !u!114 &1149146153875708766
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -322,12 +331,15 @@ MonoBehaviour:
   jugador: {fileID: 0}
   playerTag: Player
   radioCoordinacion: 7
-  maximoMiembros: 4
+  maximoMiembros: 5
   intervaloRecalculoGrupo: 0.2
   duracionTurnoPinza: 1.35
   duracionTurnoTriangulo: 1.2
   duracionOleada: 1.15
-  distanciaFlanco: 1.8
+  respiroEntreRondas: 0.85
+  retrasoCastigoEspada: 0.22
+  esperaMaximaAnteEspada: 1.1
+  distanciaFlanco: 2.4
   adelantamientoInterceptor: 1.1
   distanciaSeparacion: 0.9
   fuerzaSeparacion: 0.65
@@ -336,9 +348,11 @@ MonoBehaviour:
   agresividadDos: 1.08
   agresividadTres: 1.18
   agresividadCuatro: 1.3
+  agresividadCinco: 1.4
   pausaDos: 0.92
   pausaTres: 0.84
   pausaCuatro: 0.72
+  pausaCinco: 0.82
   dibujarGizmos: 1
   patronActual: 0
   rolActual: 0
@@ -348,6 +362,34 @@ MonoBehaviour:
   puedeAtacarAhora: 1
   multiplicadorAgresividad: 1
   multiplicadorPausa: 1
+  faseEquipo: 0
+--- !u!114 &8578354780833995616
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1123466830323704297}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2eb5eca0397c35d4c8b05e53c1f73841, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  species: 1
+--- !u!114 &855201470872669442
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1123466830323704297}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d2742a3a71bb28045a4ccc40881f6513, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cuerpoSapo: {fileID: 0}
+  playerTag: Player
 --- !u!1 &2937074570211943919
 GameObject:
   m_ObjectHideFlags: 0
@@ -375,7 +417,7 @@ Transform:
   m_GameObject: {fileID: 2937074570211943919}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.039, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -413,7 +455,7 @@ BoxCollider2D:
   m_IsTrigger: 1
   m_UsedByEffector: 0
   m_UsedByComposite: 0
-  m_Offset: {x: -0.0051059723, y: 0.047462434}
+  m_Offset: {x: -0.0045223236, y: 0.098800115}
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0, y: 0}
@@ -424,7 +466,7 @@ BoxCollider2D:
     adaptiveTiling: 0
   m_AutoTiling: 0
   serializedVersion: 2
-  m_Size: {x: 0.26228714, y: 0.0142585635}
+  m_Size: {x: 0.2558802, y: 0.04445762}
   m_EdgeRadius: 0
 --- !u!114 &5678372934380994879
 MonoBehaviour:

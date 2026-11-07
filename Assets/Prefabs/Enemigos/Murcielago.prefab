@@ -16,6 +16,7 @@ GameObject:
   - component: {fileID: 3039205821656847644}
   - component: {fileID: 1423702631975774479}
   - component: {fileID: 7905216869527867204}
+  - component: {fileID: 962003761567632452}
   m_Layer: 8
   m_Name: Murcielago
   m_TagString: Untagged
@@ -237,3 +238,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   vidaMaxima: 3
   destruirAlMorir: 1
+--- !u!114 &962003761567632452
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3017592173373187129}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2eb5eca0397c35d4c8b05e53c1f73841, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  species: 0

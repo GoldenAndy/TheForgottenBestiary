@@ -32,6 +32,9 @@ public class MenuPausa : MonoBehaviour
 
     private void Update()
     {
+        if (BestiaryJournal.BlocksGameplayInput)
+            return;
+
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             if (optionsAbierto)
@@ -103,6 +106,9 @@ public class MenuPausa : MonoBehaviour
 
     public void Pausar()
     {
+        if (BestiaryJournal.BlocksGameplayInput)
+            return;
+
         pausado = true;
         menuPausaCompleto.SetActive(true);
         Time.timeScale = 0f;
