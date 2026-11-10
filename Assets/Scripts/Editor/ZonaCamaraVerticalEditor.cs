@@ -12,6 +12,7 @@ public class ZonaCamaraVerticalEditor : Editor
     private SerializedProperty offsetY;
     private SerializedProperty margenVertical;
     private SerializedProperty suavizadoVertical;
+    private SerializedProperty limitarAltura, alturaMinimaCamara, alturaMaximaCamara, margenSalida;
 
     private SerializedProperty modoZoom;
     private SerializedProperty zoomPersonalizado;
@@ -28,6 +29,10 @@ public class ZonaCamaraVerticalEditor : Editor
         offsetY = serializedObject.FindProperty("offsetY");
         margenVertical = serializedObject.FindProperty("margenVertical");
         suavizadoVertical = serializedObject.FindProperty("suavizadoVertical");
+        limitarAltura = serializedObject.FindProperty("limitarAltura");
+        alturaMinimaCamara = serializedObject.FindProperty("alturaMinimaCamara");
+        alturaMaximaCamara = serializedObject.FindProperty("alturaMaximaCamara");
+        margenSalida = serializedObject.FindProperty("margenSalida");
 
         modoZoom = serializedObject.FindProperty("modoZoom");
         zoomPersonalizado = serializedObject.FindProperty("zoomPersonalizado");
@@ -49,6 +54,13 @@ public class ZonaCamaraVerticalEditor : Editor
         EditorGUILayout.Space(10);
 
         DibujarMovimientoVertical();
+        if ((ModoVerticalCamara)modoVertical.enumValueIndex != ModoVerticalCamara.MantenerAlturaNormal)
+        {
+            EditorGUILayout.PropertyField(limitarAltura);
+            if (limitarAltura.boolValue)
+            { EditorGUILayout.PropertyField(alturaMinimaCamara); EditorGUILayout.PropertyField(alturaMaximaCamara); }
+        }
+        EditorGUILayout.PropertyField(margenSalida);
 
         EditorGUILayout.Space(10);
 
